@@ -20,34 +20,6 @@ st.markdown("""
         color: #e0e6ed;
     }
     
-    @keyframes radar-sweep {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    
-    .radar-box {
-        position: relative;
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        border: 2px solid #00f2fe;
-        background: radial-gradient(circle, rgba(0,242,254,0.1) 0%, rgba(0,0,0,0.8) 70%);
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
-        margin: 0 auto;
-        overflow: hidden;
-    }
-    
-    .radar-sweep-line {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 50%;
-        height: 50%;
-        background: linear-gradient(45deg, rgba(0,242,254,0.6), transparent);
-        transform-origin: top left;
-        animation: radar-sweep 2s linear infinite;
-    }
-    
     .glass-card {
         background: rgba(26, 31, 44, 0.65);
         backdrop-filter: blur(10px);
@@ -106,31 +78,6 @@ current_threshold = st.sidebar.slider("Current Limit (A)", 5.0, 50.0, 32.0, 0.5)
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Timestamp", "Vibration", "Temperature", "Current", "Anomaly_Score"])
 
-# Helper: Generate 3D Spinning Mesh Twin
-def build_3d_digital_twin(rotation_angle, is_critical):
-    z = np.linspace(0, 10, 30)
-    theta = np.linspace(0, 2 * np.pi, 30) + rotation_angle
-    theta_grid, z_grid = np.meshgrid(theta, z)
-    x = (2 + 0.5 * np.cos(theta_grid * 4)) * np.cos(theta_grid)
-    y = (2 + 0.5 * np.cos(theta_grid * 4)) * np.sin(theta_grid)
-
-    color_scheme = 'Reds' if is_critical else 'YlGnBu'
-    
-    fig = go.Figure(data=[go.Surface(x=x, y=y, z=z_grid, colorscale=color_scheme, showscale=False)])
-    fig.update_layout(
-        title="3D Physical Rotor Model",
-        scene=dict(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
-            zaxis=dict(visible=False),
-            camera=dict(eye=dict(x=1.5, y=1.5, z=1.2))
-        ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=30, b=0),
-        height=320
-    )
-    return fig
-
 # Helper: Gauge Creator
 def create_gauge(value, min_val, max_val, title, threshold, color):
     fig = go.Figure(go.Indicator(
@@ -153,17 +100,10 @@ tab_live, tab_ai, tab_diagnostics = st.tabs(["📡 Live Telemetry Twin", "🤖 P
 warning_placeholder = st.empty()
 
 with tab_live:
-    col_twin_3d, col_gauges = st.columns([1, 1.2])
-    
-    with col_twin_3d:
-        twin_3d_placeholder = st.empty()
-        radar_p = st.empty()
-        
-    with col_gauges:
-        col_g1, col_g2, col_g3 = st.columns(3)
-        gauge_vib_p = col_g1.empty()
-        gauge_temp_p = col_g2.empty()
-        gauge_curr_p = col_g3.empty()
+    col_g1, col_g2, col_g3 = st.columns(3)
+    gauge_vib_p = col_g1.empty()
+    gauge_temp_p = col_g2.empty()
+    gauge_curr_p = col_g3.empty()
 
     chart_col1, chart_col2, chart_col3 = st.columns(3)
     chart_vib_p = chart_col1.empty()
@@ -184,7 +124,6 @@ step_count = 0
 # Main Monitoring Loop
 while run_monitoring:
     step_count += 1
-    angle = (step_count * 0.4) % (2 * np.pi)
     now = pd.Timestamp.now().strftime("%H:%M:%S")
 
     # 1. Simulate 3 Sensor Inputs (Vibration, Temp, Current)
@@ -222,26 +161,12 @@ while run_monitoring:
             unsafe_allow_html=True
         )
 
-    # 4. Render 3D Model & Radar
-    twin_3d_placeholder.plotly_chart(
-        build_3d_digital_twin(angle, is_critical), 
-        use_container_width=True, 
-        key=f"3d_twin_{step_count}"
-    )
-
-    radar_p.markdown("""
-        <div style="text-align: center; margin-bottom: 10px;">
-            <div class="radar-box"><div class="radar-sweep-line"></div></div>
-            <span style="font-size: 0.75rem; color: #00f2fe;">SENSOR RADAR ACTIVE</span>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # 5. Render Gauges (Vibration, Temp, Current)
+    # 4. Render Gauges (Vibration, Temp, Current)
     gauge_vib_p.plotly_chart(create_gauge(vib, 0, 10, "Vibration (mm/s)", vibration_threshold, "#00f2fe"), use_container_width=True, key=f"g_vib_{step_count}")
     gauge_temp_p.plotly_chart(create_gauge(temp, 30, 120, "Temp (°C)", temp_threshold, "#ff9f43"), use_container_width=True, key=f"g_temp_{step_count}")
     gauge_curr_p.plotly_chart(create_gauge(curr, 0, 50, "Current (A)", current_threshold, "#a855f7"), use_container_width=True, key=f"g_curr_{step_count}")
 
-    # 6. Render 3 Time-Series Charts
+    # 5. Render 3 Time-Series Charts
     fig_vib = go.Figure(go.Scatter(x=df["Timestamp"], y=df["Vibration"], mode="lines+markers", line=dict(color="#00f2fe", width=2)))
     fig_vib.add_hline(y=vibration_threshold, line_dash="dash", line_color="#ff1744")
     fig_vib.update_layout(title="Vibration Feed", paper_bgcolor="#1a1f2c", plot_bgcolor="#1a1f2c", font=dict(color="white"), height=220, margin=dict(l=20,r=20,t=30,b=20))
@@ -257,7 +182,7 @@ while run_monitoring:
     fig_curr.update_layout(title="Current Draw (Amps)", paper_bgcolor="#1a1f2c", plot_bgcolor="#1a1f2c", font=dict(color="white"), height=220, margin=dict(l=20,r=20,t=30,b=20))
     chart_curr_p.plotly_chart(fig_curr, use_container_width=True, key=f"c_curr_{step_count}")
 
-    # 7. Render AI Predictive Tab
+    # 6. Render AI Predictive Tab
     rul_hours = int((1 - anomaly_score) * 1200)
     ai_metrics_p.markdown(f"""
         <div style="display: flex; gap: 20px;">
@@ -276,7 +201,7 @@ while run_monitoring:
     fig_ai.update_layout(title="Multi-Sensor Predictive Anomaly Score", paper_bgcolor="#1a1f2c", plot_bgcolor="#1a1f2c", font=dict(color="white"), height=250)
     ai_chart_p.plotly_chart(fig_ai, use_container_width=True, key=f"c_ai_{step_count}")
 
-    # 8. Diagnostics Tab
+    # 7. Diagnostics Tab
     log_table_p.dataframe(df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
 
     time.sleep(0.8)
