@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import time
+from datetime import datetime
 
 # Page Configuration
 st.set_page_config(
@@ -12,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Advanced CSS: Animations, Glassmorphism, Neon Glows
+# Advanced CSS: Glassmorphism, Neon Glows
 st.markdown("""
 <style>
     .stApp {
@@ -74,7 +75,7 @@ vibration_threshold = st.sidebar.slider("Vibration Limit (mm/s)", 1.0, 10.0, 6.5
 temp_threshold = st.sidebar.slider("Temperature Limit (°C)", 40, 110, 82)
 current_threshold = st.sidebar.slider("Current Limit (A)", 5.0, 50.0, 32.0, 0.5)
 
-# Session State Setup (Added Current column)
+# Session State Setup
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Timestamp", "Vibration", "Temperature", "Current", "Anomaly_Score"])
 
@@ -124,7 +125,9 @@ step_count = 0
 # Main Monitoring Loop
 while run_monitoring:
     step_count += 1
-    now = pd.Timestamp.now().strftime("%H:%M:%S")
+    
+    # Updated: Explicitly fetches local system clock time
+    now = datetime.now().astimezone().strftime("%H:%M:%S")
 
     # 1. Simulate 3 Sensor Inputs (Vibration, Temp, Current)
     vib = round(np.random.normal(5.2, 1.3), 2)
