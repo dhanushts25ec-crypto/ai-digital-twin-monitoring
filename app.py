@@ -4,11 +4,6 @@ import numpy as np
 import plotly.graph_objects as go
 import time
 from datetime import datetime
-import pygame
-
-# Initialize pygame mixer for audio playback
-if not pygame.mixer.get_init():
-    pygame.mixer.init()
 
 # Page Configuration
 st.set_page_config(
@@ -100,30 +95,6 @@ def create_gauge(value, min_val, max_val, title, threshold, color):
     fig.update_layout(height=160, margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
     return fig
 
-# Helper: Beep Sound Trigger for System Speaker
-def trigger_alarm(play_sound=True):
-    if play_sound:
-        # Check if channel is busy (already playing sound), if not, start sound
-        if not pygame.mixer.get_busy():
-            # Generate a continuous warning sound using raw frequency buffer
-            sample_rate = 44100
-            duration = 1.0  # seconds
-            n_samples = int(sample_rate * duration)
-            
-            # Generate a 1000Hz tone (Buzzer sound)
-            buf = np.sin(2 * np.pi * np.arange(n_samples) * 1000 / sample_rate)
-            buf = (buf * 32767).astype(np.int16) # Convert to 16-bit PCM
-            
-            # Duplicate for stereo audio
-            stereo_buf = np.repeat(buf[:, np.newaxis], 2, axis=1)
-            sound = pygame.sndarray.make_sound(stereo_buf)
-            
-            # -1 loops the sound continuously
-            sound.play(loops=-1)
-    else:
-        # Stop sound when machine returns to normal
-        pygame.mixer.stop()
-
 # Tabs
 tab_live, tab_ai, tab_diagnostics = st.tabs(["📡 Live Telemetry Twin", "🤖 Predictive AI Engine", "⚙️ Diagnostics & Logs"])
 
@@ -155,7 +126,7 @@ step_count = 0
 while run_monitoring:
     step_count += 1
     
-    # Explicitly fetches local system clock time
+    # Updated: Explicitly fetches local system clock time
     now = datetime.now().astimezone().strftime("%H:%M:%S")
 
     # 1. Simulate 3 Sensor Inputs (Vibration, Temp, Current)
@@ -177,11 +148,8 @@ while run_monitoring:
     curr_crit = curr > current_threshold
     is_critical = vib_crit or temp_crit or curr_crit
 
-    # 3. Dynamic Alert Banner & Audio Buzzer Control
+    # 3. Dynamic Alert Banner
     if is_critical:
-        # Trigger continuous buzzer sound on laptop speakers
-        trigger_alarm(play_sound=True)
-        
         breaches = []
         if vib_crit: breaches.append(f"Vibration ({vib} mm/s)")
         if temp_crit: breaches.append(f"Temp ({temp}°C)")
@@ -191,9 +159,6 @@ while run_monitoring:
             unsafe_allow_html=True
         )
     else:
-        # Stop buzzer sound when values drop back below threshold
-        trigger_alarm(play_sound=False)
-        
         warning_placeholder.markdown(
             f'<div class="alert-ok">✅ SYSTEM OPTIMAL: {selected_machine} operating normally. All 3 sensor feeds within range.</div>',
             unsafe_allow_html=True
@@ -243,6 +208,3 @@ while run_monitoring:
     log_table_p.dataframe(df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
 
     time.sleep(0.8)
-
-# Stop mixer when stream loop breaks
-pygame.mixer.stop()
