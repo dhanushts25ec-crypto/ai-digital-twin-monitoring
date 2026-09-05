@@ -4,7 +4,11 @@ import numpy as np
 import plotly.graph_objects as go
 import time
 from datetime import datetime
-import streamlit.components.v1 as components
+import pygame
+
+# Initialize pygame mixer for audio playback
+if not pygame.mixer.get_init():
+    pygame.mixer.init()
 
 # Page Configuration
 st.set_page_config(
@@ -80,35 +84,6 @@ current_threshold = st.sidebar.slider("Current Limit (A)", 5.0, 50.0, 32.0, 0.5)
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Timestamp", "Vibration", "Temperature", "Current", "Anomaly_Score"])
 
-# Helper: Audio Buzzer JS Generator
-def play_buzzer():
-    js_code = """
-    <script>
-        (function() {
-            try {
-                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                var osc = audioCtx.createOscillator();
-                var gain = audioCtx.createGain();
-                
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 880 Hz tone
-                
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-                
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.5);
-            } catch(e) {
-                console.log("Audio play blocked by browser autoplay policy.");
-            }
-        })();
-    </script>
-    """
-    components.html(js_code, height=0, width=0)
-
 # Helper: Gauge Creator
 def create_gauge(value, min_val, max_val, title, threshold, color):
     fig = go.Figure(go.Indicator(
@@ -125,11 +100,34 @@ def create_gauge(value, min_val, max_val, title, threshold, color):
     fig.update_layout(height=160, margin=dict(l=10, r=10, t=25, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
     return fig
 
+# Helper: Beep Sound Trigger for System Speaker
+def trigger_alarm(play_sound=True):
+    if play_sound:
+        # Check if channel is busy (already playing sound), if not, start sound
+        if not pygame.mixer.get_busy():
+            # Generate a continuous warning sound using raw frequency buffer
+            sample_rate = 44100
+            duration = 1.0  # seconds
+            n_samples = int(sample_rate * duration)
+            
+            # Generate a 1000Hz tone (Buzzer sound)
+            buf = np.sin(2 * np.pi * np.arange(n_samples) * 1000 / sample_rate)
+            buf = (buf * 32767).astype(np.int16) # Convert to 16-bit PCM
+            
+            # Duplicate for stereo audio
+            stereo_buf = np.repeat(buf[:, np.newaxis], 2, axis=1)
+            sound = pygame.sndarray.make_sound(stereo_buf)
+            
+            # -1 loops the sound continuously
+            sound.play(loops=-1)
+    else:
+        # Stop sound when machine returns to normal
+        pygame.mixer.stop()
+
 # Tabs
 tab_live, tab_ai, tab_diagnostics = st.tabs(["📡 Live Telemetry Twin", "🤖 Predictive AI Engine", "⚙️ Diagnostics & Logs"])
 
 warning_placeholder = st.empty()
-buzzer_placeholder = st.empty()
 
 with tab_live:
     col_g1, col_g2, col_g3 = st.columns(3)
@@ -179,8 +177,11 @@ while run_monitoring:
     curr_crit = curr > current_threshold
     is_critical = vib_crit or temp_crit or curr_crit
 
-    # 3. Dynamic Alert Banner & Audio Buzzer Trigger
+    # 3. Dynamic Alert Banner & Audio Buzzer Control
     if is_critical:
+        # Trigger continuous buzzer sound on laptop speakers
+        trigger_alarm(play_sound=True)
+        
         breaches = []
         if vib_crit: breaches.append(f"Vibration ({vib} mm/s)")
         if temp_crit: breaches.append(f"Temp ({temp}°C)")
@@ -189,15 +190,14 @@ while run_monitoring:
             f'<div class="alert-danger">🚨 CRITICAL ALERT on {selected_machine}: Over Limit in {", ".join(breaches)}!</div>',
             unsafe_allow_html=True
         )
-        # Triggers laptop audio alert
-        with buzzer_placeholder:
-            play_buzzer()
     else:
+        # Stop buzzer sound when values drop back below threshold
+        trigger_alarm(play_sound=False)
+        
         warning_placeholder.markdown(
             f'<div class="alert-ok">✅ SYSTEM OPTIMAL: {selected_machine} operating normally. All 3 sensor feeds within range.</div>',
             unsafe_allow_html=True
         )
-        buzzer_placeholder.empty()
 
     # 4. Render Gauges (Vibration, Temp, Current)
     gauge_vib_p.plotly_chart(create_gauge(vib, 0, 10, "Vibration (mm/s)", vibration_threshold, "#00f2fe"), use_container_width=True, key=f"g_vib_{step_count}")
@@ -243,3 +243,6 @@ while run_monitoring:
     log_table_p.dataframe(df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
 
     time.sleep(0.8)
+
+# Stop mixer when stream loop breaks
+pygame.mixer.stop()
