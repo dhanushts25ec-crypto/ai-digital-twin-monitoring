@@ -3,9 +3,8 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime
-import time
 
-# Page Configuration
+# 1. Page Configuration
 st.set_page_config(
     page_title="Industrial AI Digital Twin",
     page_icon="⚡",
@@ -13,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# 2. Custom CSS
 st.markdown("""
 <style>
     /* Global Styles & Dark Theme */
@@ -131,7 +130,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Session State Initialization
+# 3. Session State Initialization
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=[
         "Timestamp", "Asset", "Vibration", "Temperature", "Current", "Power", "Anomaly_Score", "Status"
@@ -146,7 +145,7 @@ if "work_order_triggered" not in st.session_state:
 if "step_count" not in st.session_state:
     st.session_state.step_count = 0
 
-# Sidebar Controls
+# 4. Sidebar Controls (Static Layout)
 st.sidebar.markdown("<h2 style='color: #00f2fe; font-weight:800; font-size:1.4rem;'>⚙️ TWIN CONTROL HUB</h2>", unsafe_allow_html=True)
 
 selected_asset = st.sidebar.selectbox(
@@ -155,7 +154,7 @@ selected_asset = st.sidebar.selectbox(
 )
 
 stream_active = st.sidebar.toggle("Stream Live Telemetry", value=True)
-sim_speed = st.sidebar.slider("Update Interval (Seconds)", min_value=0.3, max_value=2.0, value=0.8, step=0.1)
+sim_speed = st.sidebar.slider("Update Interval (Seconds)", min_value=0.5, max_value=3.0, value=1.0, step=0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("<h4 style='color: #a855f7; font-size:1rem; font-weight:700;'>⚡ FAULT INJECTION STUDIO</h4>", unsafe_allow_html=True)
@@ -180,7 +179,7 @@ thresh_vib = st.sidebar.slider("Vibration Threshold (mm/s)", 1.0, 12.0, 6.5, 0.1
 thresh_temp = st.sidebar.slider("Temperature Threshold (°C)", 40, 120, 82, 1)
 thresh_curr = st.sidebar.slider("Current Limit (A)", 5.0, 50.0, 32.0, 0.5)
 
-# Plotly Helpers
+# 5. Helper Plotly Renderers
 def render_gauge(value, min_v, max_v, title, unit, limit, color_hex):
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -240,30 +239,7 @@ def render_line_chart(df, y_col, title, color_hex, threshold_val=None):
     )
     return fig
 
-# Local Clock Calculation
-current_time = datetime.now().astimezone().strftime("%H:%M:%S")
-
-st.markdown(f"""
-<div class="brand-header">
-    <div>
-        <div style="display:flex; align-items:center; gap:12px;">
-            <h1 style="margin:0; font-size:1.6rem; font-weight:800; letter-spacing:1px; color:#ffffff;">
-                INDUSTRIAL<span style="color:#00f2fe;">TWIN.AI</span>
-            </h1>
-            <span style="background:rgba(0,242,254,0.15); color:#00f2fe; border:1px solid rgba(0,242,254,0.4); padding:2px 10px; border-radius:12px; font-size:0.7rem; font-weight:700;">PRO ENGINE v3.4</span>
-        </div>
-        <p style="margin:4px 0 0 0; font-size:0.8rem; color:#94a3b8;">Autonomous Predictive AI Telemetry & Physics-Based Twin Engine</p>
-    </div>
-    <div style="text-align:right;">
-        <div style="font-size:0.75rem; color:#64748b; font-weight:600;">SYSTEM CLOCK (LOCAL)</div>
-        <div style="font-family:'JetBrains Mono', monospace; font-size:1.2rem; font-weight:800; color:#00f2fe;">
-            {current_time}
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-def generate_sensor_sample():
+def generate_sensor_sample(current_time):
     mode = st.session_state.fault_mode
     load_multiplier = 1.0 + (load_spike / 100.0)
 
@@ -305,98 +281,86 @@ def generate_sensor_sample():
         "Status": status
     }
 
-# Dynamic Placeholders
-alert_placeholder = st.empty()
-kpi_placeholder = st.empty()
+# 6. Streamlit Isolated Fragment Engine (Eliminates Full Page Blinking)
+@st.fragment(run_every=sim_speed if stream_active else None)
+def render_live_telemetry():
+    current_time = datetime.now().astimezone().strftime("%H:%M:%S")
 
-tab_telemetry, tab_ai_engine, tab_audit = st.tabs([
-    "📡 Live Telemetry Twin", 
-    "🤖 Predictive AI & Cost Diagnostics", 
-    "⚙️ Asset Audit Logs"
-])
-
-with tab_telemetry:
-    gauge_col1, gauge_col2, gauge_col3, gauge_col4 = st.columns(4)
-    g1_p = gauge_col1.empty()
-    g2_p = gauge_col2.empty()
-    g3_p = gauge_col3.empty()
-    g4_p = gauge_col4.empty()
-
-    chart_col1, chart_col2, chart_col3 = st.columns(3)
-    c1_p = chart_col1.empty()
-    c2_p = chart_col2.empty()
-    c3_p = chart_col3.empty()
-
-with tab_ai_engine:
-    ai_col_left, ai_col_right = st.columns([1.6, 1])
-    with ai_col_left:
-        ai_chart_p = st.empty()
-        health_breakdown_p = st.empty()
-    with ai_col_right:
-        ai_copilot_p = st.empty()
-        cost_impact_p = st.empty()
-
-with tab_audit:
-    st.markdown("<h4 style='color:#e2e8f0; font-size:1rem; margin-bottom:12px;'>Real-Time Telemetry Data Stream Audit</h4>", unsafe_allow_html=True)
-    logs_table_p = st.empty()
-    export_col1, export_col2 = st.columns([1, 4])
-
-# Generate Data Sample & Update Session Frame
-sample = generate_sensor_sample()
-st.session_state.step_count += 1
-step_idx = st.session_state.step_count
-
-new_row = pd.DataFrame([sample])
-st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True).tail(30)
-df_curr = st.session_state.data
-
-is_critical = sample["Status"] == "CRITICAL"
-health_idx = max(round(100.0 - sample["Anomaly_Score"], 1), 0.1)
-rul_hours = int((health_idx / 100.0) * 1250)
-
-# Alert Display
-if is_critical:
-    breaches = []
-    if sample["Vibration"] > thresh_vib: breaches.append(f"Vibration ({sample['Vibration']} mm/s)")
-    if sample["Temperature"] > thresh_temp: breaches.append(f"Temperature ({sample['Temperature']} °C)")
-    if sample["Current"] > thresh_curr: breaches.append(f"Current Draw ({sample['Current']} A)")
-    
-    alert_placeholder.markdown(f"""
-        <div class="ai-box-danger">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <span class="badge-danger">🚨 CRITICAL BREACH DETECTED</span>
-                    <h3 style="margin:6px 0 2px 0; color:#ff1744; font-size:1.1rem; font-weight:800;">
-                        Safety Envelope Exceeded on {selected_asset}
-                    </h3>
-                    <p style="margin:0; font-size:0.85rem; color:#fca5a5;">
-                        Parameter Limit Violations: <b>{', '.join(breaches)}</b>. Automated safety interlock advisory issued.
-                    </p>
-                </div>
+    # Header Render
+    st.markdown(f"""
+    <div class="brand-header">
+        <div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <h1 style="margin:0; font-size:1.6rem; font-weight:800; letter-spacing:1px; color:#ffffff;">
+                    INDUSTRIAL<span style="color:#00f2fe;">TWIN.AI</span>
+                </h1>
+                <span style="background:rgba(0,242,254,0.15); color:#00f2fe; border:1px solid rgba(0,242,254,0.4); padding:2px 10px; border-radius:12px; font-size:0.7rem; font-weight:700;">PRO ENGINE v3.4</span>
+            </div>
+            <p style="margin:4px 0 0 0; font-size:0.8rem; color:#94a3b8;">Autonomous Predictive AI Telemetry & Physics-Based Twin Engine</p>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:0.75rem; color:#64748b; font-weight:600;">SYSTEM CLOCK (LOCAL)</div>
+            <div style="font-family:'JetBrains Mono', monospace; font-size:1.2rem; font-weight:800; color:#00f2fe;">
+                {current_time}
             </div>
         </div>
-    """, unsafe_allow_html=True)
-else:
-    alert_placeholder.markdown(f"""
-        <div class="ai-box">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <span class="badge-ok">✅ SYSTEM OPTIMAL</span>
-                    <span style="font-size:0.9rem; font-weight:700; color:#e2e8f0; margin-left:8px;">
-                        {selected_asset} operating in Nominal Envelope
-                    </span>
-                    <p style="margin:4px 0 0 0; font-size:0.8rem; color:#94a3b8;">
-                        Active Mode: <b>{st.session_state.fault_mode}</b> | All dynamic telemetry channels stabilized.
-                    </p>
-                </div>
-            </div>
-        </div>
+    </div>
     """, unsafe_allow_html=True)
 
-# Key Performance Indicators
-with kpi_placeholder.container():
+    # Data Update Step
+    sample = generate_sensor_sample(current_time)
+    st.session_state.step_count += 1
+    step_idx = st.session_state.step_count
+
+    new_row = pd.DataFrame([sample])
+    st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True).tail(30)
+    df_curr = st.session_state.data
+
+    is_critical = sample["Status"] == "CRITICAL"
+    health_idx = max(round(100.0 - sample["Anomaly_Score"], 1), 0.1)
+    rul_hours = int((health_idx / 100.0) * 1250)
+
+    # Alert Section
+    if is_critical:
+        breaches = []
+        if sample["Vibration"] > thresh_vib: breaches.append(f"Vibration ({sample['Vibration']} mm/s)")
+        if sample["Temperature"] > thresh_temp: breaches.append(f"Temperature ({sample['Temperature']} °C)")
+        if sample["Current"] > thresh_curr: breaches.append(f"Current Draw ({sample['Current']} A)")
+        
+        st.markdown(f"""
+            <div class="ai-box-danger">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span class="badge-danger">🚨 CRITICAL BREACH DETECTED</span>
+                        <h3 style="margin:6px 0 2px 0; color:#ff1744; font-size:1.1rem; font-weight:800;">
+                            Safety Envelope Exceeded on {selected_asset}
+                        </h3>
+                        <p style="margin:0; font-size:0.85rem; color:#fca5a5;">
+                            Parameter Limit Violations: <b>{', '.join(breaches)}</b>. Automated safety interlock advisory issued.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div class="ai-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span class="badge-ok">✅ SYSTEM OPTIMAL</span>
+                        <span style="font-size:0.9rem; font-weight:700; color:#e2e8f0; margin-left:8px;">
+                            {selected_asset} operating in Nominal Envelope
+                        </span>
+                        <p style="margin:4px 0 0 0; font-size:0.8rem; color:#94a3b8;">
+                            Active Mode: <b>{st.session_state.fault_mode}</b> | All dynamic telemetry channels stabilized.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Metric Cards
     k1, k2, k3, k4, k5 = st.columns(5)
-    
     k1.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">OVERALL HEALTH</div>
@@ -437,141 +401,150 @@ with kpi_placeholder.container():
         </div>
     """, unsafe_allow_html=True)
 
-# Telemetry Gauges & Charts with Explicit Step Keys
-g1_p.plotly_chart(render_gauge(sample["Vibration"], 0, 12, "VIBRATION", "mm/s", thresh_vib, "#00f2fe"), use_container_width=True, key=f"g1_{step_idx}")
-g2_p.plotly_chart(render_gauge(sample["Temperature"], 30, 120, "TEMPERATURE", "°C", thresh_temp, "#ff9f43"), use_container_width=True, key=f"g2_{step_idx}")
-g3_p.plotly_chart(render_gauge(sample["Current"], 0, 50, "CURRENT DRAW", "A", thresh_curr, "#a855f7"), use_container_width=True, key=f"g3_{step_idx}")
-g4_p.plotly_chart(render_gauge(sample["Power"], 0, 30, "ACTIVE POWER", "kW", 24.0, "#00e676"), use_container_width=True, key=f"g4_{step_idx}")
+    # Tabs Layout
+    tab_telemetry, tab_ai_engine, tab_audit = st.tabs([
+        "📡 Live Telemetry Twin", 
+        "🤖 Predictive AI & Cost Diagnostics", 
+        "⚙️ Asset Audit Logs"
+    ])
 
-c1_p.plotly_chart(render_line_chart(df_curr, "Vibration", "Vibration Signature (mm/s)", "#00f2fe", thresh_vib), use_container_width=True, key=f"c1_{step_idx}")
-c2_p.plotly_chart(render_line_chart(df_curr, "Temperature", "Thermal Profile (°C)", "#ff9f43", thresh_temp), use_container_width=True, key=f"c2_{step_idx}")
-c3_p.plotly_chart(render_line_chart(df_curr, "Current", "Current Consumption (A)", "#a855f7", thresh_curr), use_container_width=True, key=f"c3_{step_idx}")
+    with tab_telemetry:
+        g1, g2, g3, g4 = st.columns(4)
+        g1.plotly_chart(render_gauge(sample["Vibration"], 0, 12, "VIBRATION", "mm/s", thresh_vib, "#00f2fe"), use_container_width=True, key=f"g1_{step_idx}")
+        g2.plotly_chart(render_gauge(sample["Temperature"], 30, 120, "TEMPERATURE", "°C", thresh_temp, "#ff9f43"), use_container_width=True, key=f"g2_{step_idx}")
+        g3.plotly_chart(render_gauge(sample["Current"], 0, 50, "CURRENT DRAW", "A", thresh_curr, "#a855f7"), use_container_width=True, key=f"g3_{step_idx}")
+        g4.plotly_chart(render_gauge(sample["Power"], 0, 30, "ACTIVE POWER", "kW", 24.0, "#00e676"), use_container_width=True, key=f"g4_{step_idx}")
 
-# AI Diagnostic Tab Setup
-with ai_col_left:
-    fig_ai = go.Figure()
-    fig_ai.add_trace(go.Scatter(
-        x=df_curr["Timestamp"],
-        y=df_curr["Anomaly_Score"],
-        fill='tozeroy',
-        fillcolor='rgba(255, 23, 68, 0.2)' if is_critical else 'rgba(0, 242, 254, 0.15)',
-        line=dict(color="#ff1744" if is_critical else "#00f2fe", width=3),
-        name="Risk Score %"
-    ))
-    fig_ai.update_layout(
-        title={'text': "<b>XGBoost Multi-Sensor Anomaly Probability Trend</b>", 'font': {'size': 14, 'color': '#ffffff'}},
-        paper_bgcolor="rgba(15, 23, 42, 0.6)",
-        plot_bgcolor="rgba(15, 23, 42, 0.6)",
-        font=dict(color="#94a3b8"),
-        height=260,
-        margin=dict(l=20, r=20, t=35, b=20),
-        yaxis=dict(range=[0, 100], gridcolor="rgba(255,255,255,0.05)")
-    )
-    ai_chart_p.plotly_chart(fig_ai, use_container_width=True, key=f"ai_chart_{step_idx}")
+        c1, c2, c3 = st.columns(3)
+        c1.plotly_chart(render_line_chart(df_curr, "Vibration", "Vibration Signature (mm/s)", "#00f2fe", thresh_vib), use_container_width=True, key=f"c1_{step_idx}")
+        c2.plotly_chart(render_line_chart(df_curr, "Temperature", "Thermal Profile (°C)", "#ff9f43", thresh_temp), use_container_width=True, key=f"c2_{step_idx}")
+        c3.plotly_chart(render_line_chart(df_curr, "Current", "Current Consumption (A)", "#a855f7", thresh_curr), use_container_width=True, key=f"c3_{step_idx}")
 
-    bearing_health = max(round(100 - (sample["Vibration"] / thresh_vib) * 45, 1), 5.0)
-    stator_health = max(round(100 - (sample["Current"] / thresh_curr) * 40, 1), 5.0)
-    thermal_barrier = max(round(100 - (sample["Temperature"] / thresh_temp) * 42, 1), 5.0)
+    with tab_ai_engine:
+        ai_col_left, ai_col_right = st.columns([1.6, 1])
+        with ai_col_left:
+            fig_ai = go.Figure()
+            fig_ai.add_trace(go.Scatter(
+                x=df_curr["Timestamp"],
+                y=df_curr["Anomaly_Score"],
+                fill='tozeroy',
+                fillcolor='rgba(255, 23, 68, 0.2)' if is_critical else 'rgba(0, 242, 254, 0.15)',
+                line=dict(color="#ff1744" if is_critical else "#00f2fe", width=3),
+                name="Risk Score %"
+            ))
+            fig_ai.update_layout(
+                title={'text': "<b>XGBoost Multi-Sensor Anomaly Probability Trend</b>", 'font': {'size': 14, 'color': '#ffffff'}},
+                paper_bgcolor="rgba(15, 23, 42, 0.6)",
+                plot_bgcolor="rgba(15, 23, 42, 0.6)",
+                font=dict(color="#94a3b8"),
+                height=260,
+                margin=dict(l=20, r=20, t=35, b=20),
+                yaxis=dict(range=[0, 100], gridcolor="rgba(255,255,255,0.05)")
+            )
+            st.plotly_chart(fig_ai, use_container_width=True, key=f"ai_chart_{step_idx}")
 
-    health_breakdown_p.markdown(f"""
-        <div class="metric-card" style="margin-top:10px;">
-            <div style="font-size:0.85rem; font-weight:700; color:#e2e8f0; margin-bottom:12px;">
-                SUBSYSTEM HEALTH DEGRADATION BREAKDOWN
-            </div>
-            <div style="margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
-                    <span>Rotor Bearing Assembly</span>
-                    <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if bearing_health < 50 else '#00e676'};">{bearing_health}%</span>
+            bearing_health = max(round(100 - (sample["Vibration"] / thresh_vib) * 45, 1), 5.0)
+            stator_health = max(round(100 - (sample["Current"] / thresh_curr) * 40, 1), 5.0)
+            thermal_barrier = max(round(100 - (sample["Temperature"] / thresh_temp) * 42, 1), 5.0)
+
+            st.markdown(f"""
+                <div class="metric-card" style="margin-top:10px;">
+                    <div style="font-size:0.85rem; font-weight:700; color:#e2e8f0; margin-bottom:12px;">
+                        SUBSYSTEM HEALTH DEGRADATION BREAKDOWN
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
+                            <span>Rotor Bearing Assembly</span>
+                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if bearing_health < 50 else '#00e676'};">{bearing_health}%</span>
+                        </div>
+                        <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
+                            <div style="background:{'#ff1744' if bearing_health < 50 else '#00e676'}; width:{bearing_health}%; height:100%;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
+                            <span>Stator Winding Insulation</span>
+                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if stator_health < 50 else '#00e676'};">{stator_health}%</span>
+                        </div>
+                        <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
+                            <div style="background:{'#ff1744' if stator_health < 50 else '#00e676'}; width:{stator_health}%; height:100%;"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
+                            <span>Turbine Thermal Barrier</span>
+                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if thermal_barrier < 50 else '#00e676'};">{thermal_barrier}%</span>
+                        </div>
+                        <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
+                            <div style="background:{'#ff1744' if thermal_barrier < 50 else '#00e676'}; width:{thermal_barrier}%; height:100%;"></div>
+                        </div>
+                    </div>
                 </div>
-                <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
-                    <div style="background:{'#ff1744' if bearing_health < 50 else '#00e676'}; width:{bearing_health}%; height:100%;"></div>
-                </div>
-            </div>
-            <div style="margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
-                    <span>Stator Winding Insulation</span>
-                    <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if stator_health < 50 else '#00e676'};">{stator_health}%</span>
-                </div>
-                <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
-                    <div style="background:{'#ff1744' if stator_health < 50 else '#00e676'}; width:{stator_health}%; height:100%;"></div>
-                </div>
-            </div>
-            <div>
-                <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#cbd5e1; margin-bottom:4px;">
-                    <span>Turbine Thermal Barrier</span>
-                    <span style="font-family:'JetBrains Mono'; font-weight:700; color:{'#ff1744' if thermal_barrier < 50 else '#00e676'};">{thermal_barrier}%</span>
-                </div>
-                <div style="background:#1e293b; border-radius:6px; height:8px; overflow:hidden;">
-                    <div style="background:{'#ff1744' if thermal_barrier < 50 else '#00e676'}; width:{thermal_barrier}%; height:100%;"></div>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-with ai_col_right:
-    if is_critical:
-        ai_copilot_p.markdown(f"""
-            <div class="ai-box-danger">
-                <h4 style="margin:0 0 8px 0; color:#ff1744; font-size:0.95rem;">🤖 AI DIAGNOSTIC COPILOT: ANOMALY</h4>
-                <p style="font-size:0.8rem; color:#e2e8f0; line-height:1.4;">
-                    <b>Primary Driver:</b> Fault mode <code>{st.session_state.fault_mode}</code> triggered excessive telemetry divergence.
-                </p>
-                <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; font-size:0.75rem; font-family:'JetBrains Mono'; color:#fca5a5; margin-top:8px;">
-                    💡 Prescriptive Action: Reduce operating load by 25% & dispatch Maintenance Crew A to inspect asset immediately.
+        with ai_col_right:
+            if is_critical:
+                st.markdown(f"""
+                    <div class="ai-box-danger">
+                        <h4 style="margin:0 0 8px 0; color:#ff1744; font-size:0.95rem;">🤖 AI DIAGNOSTIC COPILOT: ANOMALY</h4>
+                        <p style="font-size:0.8rem; color:#e2e8f0; line-height:1.4;">
+                            <b>Primary Driver:</b> Fault mode <code>{st.session_state.fault_mode}</code> triggered excessive telemetry divergence.
+                        </p>
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; font-size:0.75rem; font-family:'JetBrains Mono'; color:#fca5a5; margin-top:8px;">
+                            💡 Prescriptive Action: Reduce operating load by 25% & dispatch Maintenance Crew A to inspect asset immediately.
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                    <div class="ai-box">
+                        <h4 style="margin:0 0 8px 0; color:#00f2fe; font-size:0.95rem;">🤖 AI DIAGNOSTIC COPILOT: NOMINAL</h4>
+                        <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4;">
+                            <b>Harmonic Analysis:</b> Zero mechanical unbalance or thermal runaway signatures detected.
+                        </p>
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; font-size:0.75rem; font-family:'JetBrains Mono'; color:#67e8f9; margin-top:8px;">
+                            💡 Prescriptive Action: Continue standard operation. Next planned downtime cycle in 42 days.
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            estimated_downtime_cost = round((sample["Anomaly_Score"] / 100.0) * 14500, 2)
+            st.markdown(f"""
+                <div class="metric-card" style="margin-top:12px;">
+                    <div class="metric-label">ESTIMATED DOWNTIME COST RISK</div>
+                    <div class="metric-value" style="color:#ff9f43;">${estimated_downtime_cost:,.2f} <span style="font-size:0.8rem; color:#94a3b8;">/ hr</span></div>
+                    <p style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Based on current production rate and risk rating.</p>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        ai_copilot_p.markdown("""
-            <div class="ai-box">
-                <h4 style="margin:0 0 8px 0; color:#00f2fe; font-size:0.95rem;">🤖 AI DIAGNOSTIC COPILOT: NOMINAL</h4>
-                <p style="font-size:0.8rem; color:#cbd5e1; line-height:1.4;">
-                    <b>Harmonic Analysis:</b> Zero mechanical unbalance or thermal runaway signatures detected.
-                </p>
-                <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px; font-size:0.75rem; font-family:'JetBrains Mono'; color:#67e8f9; margin-top:8px;">
-                    💡 Prescriptive Action: Continue standard operation. Next planned downtime cycle in 42 days.
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-    estimated_downtime_cost = round((sample["Anomaly_Score"] / 100.0) * 14500, 2)
-    cost_impact_p.markdown(f"""
-        <div class="metric-card" style="margin-top:12px;">
-            <div class="metric-label">ESTIMATED DOWNTIME COST RISK</div>
-            <div class="metric-value" style="color:#ff9f43;">${estimated_downtime_cost:,.2f} <span style="font-size:0.8rem; color:#94a3b8;">/ hr</span></div>
-            <p style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">Based on current production rate and risk rating.</p>
-        </div>
-    """, unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🚨 TRIGGER WORK ORDER TICKET", type="primary", use_container_width=True, key=f"btn_wo_{step_idx}"):
+                st.session_state.work_order_triggered = True
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚨 TRIGGER WORK ORDER TICKET", type="primary", use_container_width=True, key=f"btn_wo_{step_idx}"):
-        st.session_state.work_order_triggered = True
+            if st.session_state.work_order_triggered:
+                st.success("Work Order Ticket successfully dispatched to Engineering Maintenance Team!")
 
-    if st.session_state.work_order_triggered:
-        st.success(f"Work Order Ticket #WO-{int(time.time()) % 100000} successfully dispatched to Engineering Maintenance Team!")
+    with tab_audit:
+        st.markdown("<h4 style='color:#e2e8f0; font-size:1rem; margin-bottom:12px;'>Real-Time Telemetry Data Stream Audit</h4>", unsafe_allow_html=True)
+        st.dataframe(
+            df_curr.sort_values(by="Timestamp", ascending=False),
+            use_container_width=True,
+            column_config={
+                "Status": st.column_config.TextColumn("Status"),
+                "Anomaly_Score": st.column_config.NumberColumn("Anomaly Risk %", format="%.1f%%")
+            }
+        )
 
-# Audit Log Table
-with tab_audit:
-    logs_table_p.dataframe(
-        df_curr.sort_values(by="Timestamp", ascending=False),
-        use_container_width=True,
-        column_config={
-            "Status": st.column_config.TextColumn("Status"),
-            "Anomaly_Score": st.column_config.NumberColumn("Anomaly Risk %", format="%.1f%%")
-        }
-    )
+        csv_data = df_curr.to_csv(index=False).encode('utf-8')
+        export_col1, export_col2 = st.columns([1, 4])
+        export_col1.download_button(
+            label="📥 Export Telemetry CSV",
+            data=csv_data,
+            file_name=f"telemetry_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key=f"btn_dl_{step_idx}"
+        )
 
-    csv_data = df_curr.to_csv(index=False).encode('utf-8')
-    export_col1.download_button(
-        label="📥 Export Telemetry CSV",
-        data=csv_data,
-        file_name=f"telemetry_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-        mime="text/csv",
-        use_container_width=True,
-        key=f"btn_dl_{step_idx}"
-    )
-
-# Execution Stream Loop
-if stream_active:
-    time.sleep(sim_speed)
-    st.rerun()
+# Execute Fragment Container
+render_live_telemetry()
