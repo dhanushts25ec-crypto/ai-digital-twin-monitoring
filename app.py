@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import time
 from datetime import datetime
+import streamlit.components.v1 as components
 
 # Page Configuration
 st.set_page_config(
@@ -79,6 +80,35 @@ current_threshold = st.sidebar.slider("Current Limit (A)", 5.0, 50.0, 32.0, 0.5)
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Timestamp", "Vibration", "Temperature", "Current", "Anomaly_Score"])
 
+# Helper: Audio Buzzer JS Generator
+def play_buzzer():
+    js_code = """
+    <script>
+        (function() {
+            try {
+                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 880 Hz tone
+                
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            } catch(e) {
+                console.log("Audio play blocked by browser autoplay policy.");
+            }
+        })();
+    </script>
+    """
+    components.html(js_code, height=0, width=0)
+
 # Helper: Gauge Creator
 def create_gauge(value, min_val, max_val, title, threshold, color):
     fig = go.Figure(go.Indicator(
@@ -99,6 +129,7 @@ def create_gauge(value, min_val, max_val, title, threshold, color):
 tab_live, tab_ai, tab_diagnostics = st.tabs(["📡 Live Telemetry Twin", "🤖 Predictive AI Engine", "⚙️ Diagnostics & Logs"])
 
 warning_placeholder = st.empty()
+buzzer_placeholder = st.empty()
 
 with tab_live:
     col_g1, col_g2, col_g3 = st.columns(3)
@@ -126,7 +157,7 @@ step_count = 0
 while run_monitoring:
     step_count += 1
     
-    # Updated: Explicitly fetches local system clock time
+    # Explicitly fetches local system clock time
     now = datetime.now().astimezone().strftime("%H:%M:%S")
 
     # 1. Simulate 3 Sensor Inputs (Vibration, Temp, Current)
@@ -148,7 +179,7 @@ while run_monitoring:
     curr_crit = curr > current_threshold
     is_critical = vib_crit or temp_crit or curr_crit
 
-    # 3. Dynamic Alert Banner
+    # 3. Dynamic Alert Banner & Audio Buzzer Trigger
     if is_critical:
         breaches = []
         if vib_crit: breaches.append(f"Vibration ({vib} mm/s)")
@@ -158,11 +189,15 @@ while run_monitoring:
             f'<div class="alert-danger">🚨 CRITICAL ALERT on {selected_machine}: Over Limit in {", ".join(breaches)}!</div>',
             unsafe_allow_html=True
         )
+        # Triggers laptop audio alert
+        with buzzer_placeholder:
+            play_buzzer()
     else:
         warning_placeholder.markdown(
             f'<div class="alert-ok">✅ SYSTEM OPTIMAL: {selected_machine} operating normally. All 3 sensor feeds within range.</div>',
             unsafe_allow_html=True
         )
+        buzzer_placeholder.empty()
 
     # 4. Render Gauges (Vibration, Temp, Current)
     gauge_vib_p.plotly_chart(create_gauge(vib, 0, 10, "Vibration (mm/s)", vibration_threshold, "#00f2fe"), use_container_width=True, key=f"g_vib_{step_count}")
