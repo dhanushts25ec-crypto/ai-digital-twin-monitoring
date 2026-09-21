@@ -6,7 +6,7 @@ from datetime import datetime
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="Industrial AI Digital Twin",
+    page_title="Industrial AI Digital-Twin",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
