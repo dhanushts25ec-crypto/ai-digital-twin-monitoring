@@ -145,7 +145,7 @@ if "work_order_triggered" not in st.session_state:
 if "step_count" not in st.session_state:
     st.session_state.step_count = 0
 
-# 4. Sidebar Controls (Static Layout)
+# 4. Sidebar Controls
 st.sidebar.markdown("<h2 style='color: #00f2fe; font-weight:800; font-size:1.4rem;'>⚙️ TWIN CONTROL HUB</h2>", unsafe_allow_html=True)
 
 selected_asset = st.sidebar.selectbox(
@@ -162,6 +162,7 @@ st.sidebar.markdown("<h4 style='color: #a855f7; font-size:1rem; font-weight:700;
 col_f1, col_f2 = st.sidebar.columns(2)
 if col_f1.button("🟢 Normal Mode", use_container_width=True):
     st.session_state.fault_mode = "NORMAL"
+    st.session_state.work_order_triggered = False
 if col_f2.button("🔥 Thermal Spike", use_container_width=True):
     st.session_state.fault_mode = "THERMAL"
 
@@ -184,8 +185,8 @@ def render_gauge(value, min_v, max_v, title, unit, limit, color_hex):
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
-        title={'text': f"<b>{title}</b><br><span style='font-size:0.7em;color:#94a3b8;'>Limit: {limit} {unit}</span>", 'font': {'size': 12, 'color': "#ffffff"}},
-        number={'suffix': f" {unit}", 'font': {'size': 20, 'color': color_hex, 'family': 'JetBrains Mono'}},
+        title={'text': f"<b>{title}</b><br><span style='font-size:0.7em;color:#94a3b8;'>Limit: {limit} {unit}</span>", 'font': {'size': 11, 'color': "#ffffff"}},
+        number={'suffix': f" {unit}", 'font': {'size': 18, 'color': color_hex, 'family': 'JetBrains Mono'}},
         gauge={
             'axis': {'range': [min_v, max_v], 'tickcolor': "#475569", 'tickwidth': 1},
             'bar': {'color': color_hex},
@@ -199,8 +200,8 @@ def render_gauge(value, min_v, max_v, title, unit, limit, color_hex):
         }
     ))
     fig.update_layout(
-        height=170,
-        margin=dict(l=15, r=15, t=30, b=10),
+        height=180,
+        margin=dict(l=15, r=15, t=35, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         font={'color': "white"}
     )
@@ -281,7 +282,7 @@ def generate_sensor_sample(current_time):
         "Status": status
     }
 
-# 6. Streamlit Isolated Fragment Engine (Eliminates Full Page Blinking)
+# 6. Streamlit Isolated Fragment Engine
 @st.fragment(run_every=sim_speed if stream_active else None)
 def render_live_telemetry():
     current_time = datetime.now().astimezone().strftime("%H:%M:%S")
